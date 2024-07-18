@@ -1,0 +1,64 @@
+<script>
+    async function processWatermark() {
+        const pdfFile = document.getElementById('pdfFile').files[0];
+        const watermarkText = document.getElementById('watermarkText').value;
+
+        if (!pdfFile || !watermarkText) {
+            alert('PDFファイルとウォーターマークテキストを入力してください。');
+            return;
+        }
+
+        const arrayBuffer = await pdfFile.arrayBuffer();
+        const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+        const helveticaFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+
+        const pages = pdfDoc.getPages();
+        for (const page of pages) {
+            const { width, height } = page.getSize();
+            page.drawText(watermarkText, {
+                x: width / 2,
+                y: height / 2,
+                size: 50,
+                font: helveticaFont,
+                color: PDFLib.rgb(0.5, 0.5, 0.5),
+                opacity: 0.3,
+                rotate: PDFLib.degrees(45),
+                xSkew: PDFLib.degrees(45),
+                ySkew: PDFLib.degrees(0),
+            });
+        }
+
+        const pdfBytes = await pdfDoc.save();
+        const pdfDataUri = await URL.createObjectURL(new Blob([pdfBytes], { type: 'application/pdf' }));
+
+        // PDF.jsを使用してPDFをレンダリング
+        const loadingTask = pdfjsLib.getDocument(pdfDataUri);
+        loadingTask.promise.then(function(pdf) {
+            pdf.getPage(1).then(function(page) {
+                const scale = 1.5;
+                const viewport = page.getViewport({scale: scale});
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                page.render(renderContext);
+                document.getElementById('pdfViewer').innerHTML = '';
+                document.getElementById('pdfViewer').appendChild(canvas);
+            });
+        });
+
+        // ダウンロードリンクを作成
+        const downloadLink = document.createElement('a');
+        downloadLink.href = pdfDataUri;
+        downloadLink.download = 'watermarked.pdf';
+        downloadLink.textContent = 'ウォーターマーク付きPDFをダウンロード';
+        document.getElementById('pdfViewer').appendChild(downloadLink);
+    }
+
+    // PDF.jsのワーカーを設定
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.worker.min.js';
+</script>
